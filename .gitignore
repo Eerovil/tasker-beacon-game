@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 data/*
+!data/beacons.json.template

@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request
 from sqlitedict import SqliteDict
 import os
+import json
 from logging.config import dictConfig
 
 
@@ -33,6 +34,16 @@ main_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="main", 
 user_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="users", autocommit=True)
 
 
+beacons = {}
+with open(os.path.join(data_folder, 'beacons.json'), 'r') as f:
+    beacons_file = json.load(f)
+    for mac_address in beacons_file:
+        beacons[mac_address.upper()] = {
+            'mac_address': mac_address.upper(),
+            **beacons_file[mac_address]
+        }
+
+
 @app.after_request
 def after_request(response):
     response.headers['Access-Control-Allow-Methods']='*'
@@ -53,7 +64,7 @@ def send_scan():
         ip_address = request.remote_addr
         data = request.json
         logger.info("scans from {}: {}".format(ip_address, data))
-        mac_addresses = data.get('mac', '').split(',')
+        mac_addresses = data.get('mac', '').upper().split(',')
         signal_strengths = data.get('ss', '').split(',')
 
         # NAMES IS NOT ALWAYS PROVIDED; THE LIST MAY BE OF DIFFERENT LENGTH
@@ -64,10 +75,12 @@ def send_scan():
         for mac_address, signal_strength, name in zip(mac_addresses, signal_strengths, names):
             if not mac_address:
                 continue
+            if mac_address not in beacons:
+                continue
             scans.append({
                 'mac_address': mac_address,
                 'signal_strength': signal_strength,
-                'name': name
+                'name': beacons[mac_address].get('name') or name
             })
 
         if len(scans) == 0:
