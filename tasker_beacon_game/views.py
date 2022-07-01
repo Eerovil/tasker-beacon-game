@@ -26,7 +26,7 @@ dictConfig({
 
 
 
-app = Flask(__name__, static_url_path='/static', static_folder=data_folder, template_folder='../templates')
+app = Flask(__name__, static_url_path='/static', static_folder='../static', template_folder='../templates')
 logger = app.logger
 
 
@@ -58,10 +58,33 @@ def hello_world():
 
 
 
+@app.route("/map", methods=['GET'])
+def map():
+    if request.method != 'GET':
+        return '', 405
+
+    return json.dumps(beacons)
+
+
+@app.route("/get_my_data", methods=['GET'])
+def get_my_data():
+    if request.method != 'GET':
+        return '', 405
+
+    ip_address = request.remote_addr
+    ip_address = "192.168.100.128"
+    if ip_address not in user_table:
+        return '', 404
+
+    user_data = user_table[ip_address]
+    return json.dumps(user_data)
+
+
 @app.route("/send_scan", methods=['POST'])
 def send_scan():
     if request.method == 'POST':
         ip_address = request.remote_addr
+        ip_address = "192.168.100.128"
         data = request.json
         logger.info("scans from {}: {}".format(ip_address, data))
         mac_addresses = data.get('mac', '').upper().split(',')
@@ -92,11 +115,14 @@ def send_scan():
             if closest_scan is None or closest_scan['signal_strength'] > scan['signal_strength']:
                 closest_scan = scan
 
+        closest_scan['beacon'] = beacons[closest_scan['mac_address']]
+
         user_table[ip_address] = {
             'closest_scan': closest_scan,
             'ip_address': ip_address,
             'scans': scans,
         }
         logger.info('User {} is near {} ({})'.format(ip_address, closest_scan['name'], closest_scan['mac_address']))
+        return json.dumps(user_table[ip_address])
 
-    return render_template("index.html", title = 'App')
+    return '', 405

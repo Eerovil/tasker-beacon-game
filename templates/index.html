@@ -1,12 +1,95 @@
 <html>
 <head>
+<title>App</title>
+<meta name="viewport" content="width=device-width, initial-scale=0.5, maximum-scale=0.5, user-scalable=no">
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+<style>
+    #map .map_img {
+        background-image: url('/static/map.png');
+        background-size: contain;
+        background-repeat: no-repeat;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        position: absolute;
+    }
+    #map .map_user_rel {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+    #map .map_user_pos {
+        position: absolute;
+        background-color: green;
+    }
+    #map .map_beacon {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #ff0000;
+    }
+    #map {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 20vh;
+        height: 20vh;
+    }
+</style>
+
 </head>
 <body>
-<h1>
-    Hello World
-</h1>
-<p>
-    This is a paragraph
-</p>
+    {% raw %}
+    <div id="vue-app">
+    </div>
+    <script type="template/html" id="template">
+        <div>
+            <div id="map">
+                <div class="map_img"></div>
+                <div class="map_user_rel">
+                    <div v-if="map_user_pos" class="map_user_pos" :style="{
+                        top: map_user_pos.top, left: map_user_pos.left,
+                        width: map_user_pos.width, height: map_user_pos.height
+                    }"></div>
+                    <div v-for="beacon in beacons" class="map_beacon" :style="{
+                        top: beacon.top, left: beacon.left
+                    }"></div>
+                </div>
+            </div>
+        </div>
+    </script>
+    <script>
+        var app = new Vue({
+            el: '#vue-app',
+            template: "#template",
+            data: () => ({
+                map_user_pos: null,
+                beacons: [],
+            }),
+            mounted() {
+                axios.get('/map').then(response => {
+                    this.beacons = Object.values(response.data);
+                }).then(() => {
+                    this.mainLoop();
+                })
+            },
+            methods: {
+                mainLoop() {
+                    axios.get('/get_my_data').then(response => {
+                        this.map_user_pos = response.data.closest_scan.beacon.area;
+                    })
+                    .finally(() => {
+                        setTimeout(() => {
+                            this.mainLoop();
+                        }, 1000);
+                    });
+                }
+            }
+        })
+    </script>
+    {% endraw %}
 </body>
 </html>
