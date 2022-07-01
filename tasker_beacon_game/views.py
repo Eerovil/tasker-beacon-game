@@ -3,8 +3,10 @@ from sqlitedict import SqliteDict
 import os
 import json
 from logging.config import dictConfig
+import random
 
 
+FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 data_folder = 'data'
 
 
@@ -32,6 +34,9 @@ logger = app.logger
 
 main_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="main", autocommit=True)
 user_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="users", autocommit=True)
+shop_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="shops", autocommit=True)
+shop_table = {}
+user_items_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="user_items", autocommit=True)
 
 
 beacons = {}
@@ -42,6 +47,59 @@ with open(os.path.join(data_folder, 'beacons.json'), 'r') as f:
             'mac_address': mac_address.upper(),
             **beacons_file[mac_address]
         }
+
+
+def refresh_shops():
+    # Generate shopkeeper and items for each beacon
+    # Get items at glob FILE_PATH/../static/items/*.png
+    items = {}
+    for item_file in os.listdir(os.path.join(FILE_PATH, '../static/items')):
+        if item_file.endswith('.png'):
+            slug = item_file.split('.')[0]
+            items[slug] = {
+                'slug': slug,
+                'name': slug.capitalize(),
+                'url': os.path.join('/static/items', item_file),
+                'price': random.randint(1, 5),
+            }
+
+    merchants = {}
+    for item_file in os.listdir(os.path.join(FILE_PATH, '../static/merchants')):
+        if item_file.endswith('.png'):
+            slug = item_file.split('.')[0]
+            merchants[slug] = {
+                'slug': slug,
+                'name': slug.capitalize(),
+                'url': os.path.join('/static/merchants', item_file)
+            }
+
+    def random_pop(_dict):
+        if len(list(_dict.keys())) == 0:
+            logger.warning("Out of items!")
+            return None
+        return _dict.pop(random.choice(list(_dict.keys())))
+
+    for beacon_mac in beacons.keys():
+        shop_table[beacon_mac] = {
+            'shopkeeper': random_pop(merchants),
+            'items': [random_pop(items) for _ in range(3)]
+        }
+
+    # Find favorite thing for each shopkeeper from another shop
+    for beacon_mac in beacons.keys():
+        other_items = []
+        for other_beacon_mac in beacons.keys():
+            if other_beacon_mac != beacon_mac:
+                other_items.extend(shop_table[other_beacon_mac]['items'])
+
+        if len(other_items) == 0:
+            continue
+        
+        favorite_item = random.choice(other_items)
+        shop_table[beacon_mac]['favorite_item'] = favorite_item
+
+
+refresh_shops()
 
 
 @app.after_request
@@ -63,7 +121,10 @@ def map():
     if request.method != 'GET':
         return '', 405
 
-    return json.dumps(beacons)
+    return json.dumps({
+        'beacons': beacons,
+        'shops': shop_table
+    })
 
 
 @app.route("/get_my_data", methods=['GET'])
@@ -77,7 +138,7 @@ def get_my_data():
         return '', 404
 
     user_data = user_table[ip_address]
-    return json.dumps(user_data)
+    return json.dumps({**user_data, **user_items_table.get(ip_address, {})})
 
 
 @app.route("/send_scan", methods=['POST'])
@@ -108,6 +169,10 @@ def send_scan():
 
         if len(scans) == 0:
             logger.info("No scans sent from {}".format(ip_address))
+            user_table[ip_address] = {
+                'ip_address': ip_address,
+                'scans': [],
+            }
             return 'No scans sent'
         
         closest_scan = None

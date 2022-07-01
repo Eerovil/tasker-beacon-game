@@ -20,7 +20,7 @@
         width: 100%;
         height: 100%;
     }
-    #map .map_user_pos {
+    #map .map_user_area {
         position: absolute;
         background-color: green;
     }
@@ -32,10 +32,64 @@
         background-color: #ff0000;
     }
     #map {
-        position: absolute;
+        position: relative;
         top: 0;
         right: 0;
         width: 20vh;
+        height: 20vh;
+    }
+    #wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    #shop {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 50vh;
+    }
+    #shop .shopkeeper {
+        width: 100%;
+        height: 70%;
+        background-size: contain;
+        background-repeat: no-repeat;
+    }
+    #shop .items {
+        width: 100%;
+        height: 30%;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+    }
+    #shop .items .item {
+        width: 100%;
+        height: 100%;
+        background-size: contain;
+        background-repeat: no-repeat;
+        position: relative;
+    }
+    #shop .items .item .price {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        font-size: 5vh;
+        color: #ffb000;
+    }
+    .price img {
+        height: 40px;
+        width: 30px;
+    }
+    #inventory {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
         height: 20vh;
     }
 </style>
@@ -46,18 +100,33 @@
     <div id="vue-app">
     </div>
     <script type="template/html" id="template">
-        <div>
+        <div id="wrapper">
             <div id="map">
                 <div class="map_img"></div>
                 <div class="map_user_rel">
-                    <div v-if="map_user_pos" class="map_user_pos" :style="{
-                        top: map_user_pos.top, left: map_user_pos.left,
-                        width: map_user_pos.width, height: map_user_pos.height
+                    <div v-if="map_user_area" class="map_user_area" :style="{
+                        top: map_user_area.top, left: map_user_area.left,
+                        width: map_user_area.width, height: map_user_area.height
                     }"></div>
                     <div v-for="beacon in beacons" class="map_beacon" :style="{
                         top: beacon.top, left: beacon.left
                     }"></div>
                 </div>
+            </div>
+            <div id="shop">
+                <div class="shopkeeper" :style="{
+                    backgroundImage: 'url(' + encodeURI(shop.shopkeeper.url) + ')'
+                }">
+                </div>
+                <div class="items">
+                    <div v-for="item in shop.items" class="item" :style="{
+                        backgroundImage: 'url(' + encodeURI(item.url) + ')'
+                    }">
+                    <div class="price">{{ item.price }}<img src="/static/gold.png" /></div>
+                    </div>
+                </div>
+            </div>
+            <div id="inventory">
             </div>
         </div>
     </script>
@@ -67,11 +136,16 @@
             template: "#template",
             data: () => ({
                 map_user_pos: null,
+                map_user_area: null,
                 beacons: [],
+
+                shop: null,
+                shops: {},
             }),
             mounted() {
                 axios.get('/map').then(response => {
-                    this.beacons = Object.values(response.data);
+                    this.beacons = Object.values(response.data.beacons);
+                    this.shops = response.data.shops;
                 }).then(() => {
                     this.mainLoop();
                 })
@@ -79,13 +153,26 @@
             methods: {
                 mainLoop() {
                     axios.get('/get_my_data').then(response => {
-                        this.map_user_pos = response.data.closest_scan.beacon.area;
+                        if (response.data.closest_scan) {
+                            if (response.data.closest_scan.mac_address !== (this.map_user_area || {}).mac_address) {
+                                this.map_user_pos = response.data.closest_scan;
+                                this.map_user_area = response.data.closest_scan.beacon.area;
+                            }
+                        } else {
+                            this.map_user_area = null;
+                            this.map_user_pos = null;
+                        }
                     })
                     .finally(() => {
                         setTimeout(() => {
                             this.mainLoop();
                         }, 1000);
                     });
+                }
+            },
+            watch: {
+                map_user_pos: function(val) {
+                    this.shop = this.shops[val.mac_address];
                 }
             }
         })
