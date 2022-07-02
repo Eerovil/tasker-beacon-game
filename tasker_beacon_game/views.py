@@ -165,7 +165,6 @@ def purchase_item():
 
     user_data = user_table[ip_address]
 
-
     if not user_data.get('closest_scan'):
         return '', 400
 
@@ -182,7 +181,7 @@ def purchase_item():
         return '', 404
 
     if item['price'] > user_items['money']:
-        return 'Not enough money', 400
+        return 'Not enough money ({} < {})'.format(item['price'], user_items['money']), 400
 
     user_items['money'] -= item['price']
     user_items['inventory'] = item
