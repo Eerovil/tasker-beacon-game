@@ -79,6 +79,17 @@
         background-repeat: no-repeat;
         position: relative;
     }
+    #shop .favorite {
+        background-image: url('/static/heart.png');
+        background-size: contain;
+        background-repeat: no-repeat;
+        width: 10vh;
+        height: 10vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
     .pending-drop {
         opacity: 0.5;
     }
@@ -153,6 +164,9 @@
                 <div v-if="shop" class="shopkeeper" :style="{
                     backgroundImage: 'url(' + encodeURI(shop.shopkeeper.url) + ')'
                 }">
+                    <div class="favorite">
+                        <img :src="shop.shopkeeper.favorite_item.url" />
+                    </div>
                 </div>
                 <div v-if="shop" class="items">
                     <div v-for="item in shop.items" class="item-wrapper inventory-draggable">
