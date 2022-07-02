@@ -229,6 +229,12 @@
                     <div class="price">{{ money }}<img src="/static/gold.png" /></div>
                 </div>
             </div>
+            <div id="debug-info">
+                <p v-if="map_user_pos">{{ map_user_pos }}</p>
+                <ul>
+                    <li v-for="scan in scans">{{ scan }}</li>
+                </ul>
+            </div>
         </div>
     </script>
     <script>
@@ -239,6 +245,7 @@
                 map_user_pos: null,
                 map_user_area: null,
                 beacons: [],
+                scans: {},
 
                 shop: null,
                 shops: {},
@@ -279,6 +286,7 @@
                         if (response.data.money != this.money) {
                             this.money = response.data.money;
                         }
+                        this.scans = response.data.scans;
                         if (response.data.closest_scan) {
                             if (response.data.closest_scan.mac_address !== (this.map_user_pos || {}).mac_address) {
                                 this.map_user_pos = response.data.closest_scan;

@@ -115,7 +115,8 @@ refresh_shops()
 
 def get_ip():
     ip_address = request.remote_addr
-    # ip_address = "192.168.100.128"
+    if ip_address == '192.168.100.179' or ip_address == 'localhost' or ip_address == '127.0.0.1':
+        ip_address = "192.168.100.128"
     return ip_address
 
 
@@ -244,7 +245,7 @@ def sell_item():
         sale_price += 1
 
     if shop['shopkeeper']['favorite_item']['slug'] == item_slug:
-        sale_price *= 2
+        sale_price += 5
         shop_table[mac_address]['shopkeeper']['happiness'] += 1
 
     user_items['money'] += sale_price
@@ -291,15 +292,27 @@ def send_scan():
             }
 
         closest_scan = None
+        if ip_address in user_table:
+            closest_scan = user_table[ip_address].get('closest_scan', None)
+
         to_delete = []
         for scan in scans.values():
             if scan['last_seen'] < (current_ms - 10000):
                 to_delete.append(scan['mac_address'])
+                if closest_scan['mac_address'] == scan['mac_address']:
+                    closest_scan = None
                 continue
+
+            if scan['last_seen'] < current_ms:
+                # Make unseen beacons less signaling
+                scan['signal_strength'] -= 10
+
+            if scan['mac_address'] == closest_scan['mac_address']:
+                closest_scan['signal_strength'] = scan['signal_strength']
 
             # if closest_scan:
             #     logger.info("comparinng %s > %s -> %s", closest_scan['signal_strength'], scan['signal_strength'], closest_scan['signal_strength'] > scan['signal_strength'])
-            if closest_scan is None or scan['signal_strength'] > closest_scan['signal_strength']:
+            if closest_scan is None or (scan['signal_strength'] > closest_scan['signal_strength'] and abs(scan['signal_strength'] - closest_scan['signal_strength']) > 10):
                 closest_scan = scan
 
         # logger.info(scans)
