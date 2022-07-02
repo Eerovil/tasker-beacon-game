@@ -97,16 +97,18 @@ def refresh_shops():
         }
 
     # Find favorite thing for each shopkeeper from another shop
+    used_favorites = set()
     for beacon_mac in beacons.keys():
         other_items = []
         for other_beacon_mac in beacons.keys():
             if other_beacon_mac != beacon_mac:
-                other_items.extend(shop_table[other_beacon_mac]['items'])
+                other_items.extend(filter(lambda _item: _item['slug'] not in used_favorites, shop_table[other_beacon_mac]['items']))
 
         if len(other_items) == 0:
             continue
         
         favorite_item = random.choice(other_items)
+        used_favorites.add(favorite_item['slug'])
         shop_table[beacon_mac]['shopkeeper']['favorite_item'] = favorite_item
 
 
@@ -312,7 +314,7 @@ def send_scan():
 
             # if closest_scan:
             #     logger.info("comparinng %s > %s -> %s", closest_scan['signal_strength'], scan['signal_strength'], closest_scan['signal_strength'] > scan['signal_strength'])
-            if closest_scan is None or (scan['signal_strength'] > closest_scan['signal_strength'] and abs(scan['signal_strength'] - closest_scan['signal_strength']) > 10):
+            if closest_scan is None or (scan['signal_strength'] > closest_scan['signal_strength'] and abs(scan['signal_strength'] - closest_scan['signal_strength']) > 7):
                 closest_scan = scan
 
         # logger.info(scans)
