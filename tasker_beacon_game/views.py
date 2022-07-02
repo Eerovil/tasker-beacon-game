@@ -4,10 +4,14 @@ import os
 import json
 from logging.config import dictConfig
 import random
+import time
 
 
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 data_folder = 'data'
+
+
+RUNTIME_RAND = random.randrange(0, 100000)
 
 
 dictConfig({
@@ -60,7 +64,7 @@ def refresh_shops():
                 'slug': slug,
                 'name': slug.capitalize(),
                 'url': os.path.join('/static/items', item_file),
-                'price': random.randint(1, 5),
+                'price': random.randint(1, 3),
             }
 
     merchants = {}
@@ -70,7 +74,8 @@ def refresh_shops():
             merchants[slug] = {
                 'slug': slug,
                 'name': slug.capitalize(),
-                'url': os.path.join('/static/merchants', item_file)
+                'url': os.path.join('/static/merchants', item_file),
+                'happiness': 0,
             }
 
     def random_pop(_dict):
@@ -79,11 +84,16 @@ def refresh_shops():
             return None
         return _dict.pop(random.choice(list(_dict.keys())))
 
+    index = 1
     for beacon_mac in beacons.keys():
+        _items = [random_pop(items) for _ in range(3)]
+        for _item in _items:
+            _item['price'] *= index
+        index += 2
         shop_table[beacon_mac] = {
             'mac_address': beacon_mac,
             'shopkeeper': random_pop(merchants),
-            'items': [random_pop(items) for _ in range(3)]
+            'items': _items
         }
 
     # Find favorite thing for each shopkeeper from another shop
@@ -105,7 +115,7 @@ refresh_shops()
 
 def get_ip():
     ip_address = request.remote_addr
-    # ip_address = "192.168.100.128"
+    ip_address = "192.168.100.128"
     return ip_address
 
 
@@ -151,7 +161,7 @@ def get_my_data():
             'money': 5,
         }
 
-    return json.dumps({**user_data, **user_items_table.get(ip_address, {})})
+    return json.dumps({**user_data, **user_items_table.get(ip_address, {}), 'run': RUNTIME_RAND})
 
 
 @app.route("/purchase_item", methods=['POST'])
@@ -229,13 +239,18 @@ def sell_item():
     if not in_current_shop:
         sale_price += 1
 
-    if shop['shopkeeper']['favorite_item'] == item_slug:
+    if shop['shopkeeper']['favorite_item']['slug'] == item_slug:
         sale_price *= 2
+        shop_table[mac_address]['shopkeeper']['happiness'] += 1
 
     user_items['money'] += sale_price
     user_items['inventory'] = None
     user_items_table[ip_address] = user_items
-    return 'OK', 200
+    return json.dumps({
+        'shops': shop_table,
+        'inventory': user_items['inventory'],
+        'money': user_items['money'],
+    })
 
 
 @app.route("/send_scan", methods=['POST'])
@@ -246,8 +261,12 @@ def send_scan():
         logger.info("scans from {}: {}".format(ip_address, data))
         mac_addresses = data.get('mac', '').upper().split(',')
         signal_strengths = data.get('ss', '').split(',')
+        current_ms = time.time_ns() // 1000000
 
-        scans = []
+        if not user_table.get(ip_address):
+            scans = {}
+        else:
+            scans = user_table[ip_address]['scans']
 
         for mac_address, signal_strength in zip(mac_addresses, signal_strengths):
             if not mac_address:
@@ -256,27 +275,37 @@ def send_scan():
                 continue
 
             signal_strength = int(signal_strength)
-            if signal_strength < -62:
-                continue
-            scans.append({
+            signal_offset = beacons[mac_address].get('offset', 0)
+            signal_strength += signal_offset
+            # if signal_strength < -75:
+            #     continue
+            scans[mac_address] = {
                 'mac_address': mac_address,
                 'signal_strength': signal_strength,
-                'name': beacons[mac_address].get('name') or ''
-            })
-
-        if len(scans) == 0:
-            logger.info("No scans sent from {}".format(ip_address))
-            user_table[ip_address] = {
-                'closest_scan': None,
-                'ip_address': ip_address,
-                'scans': [],
+                'name': beacons[mac_address].get('name') or '',
+                'last_seen': current_ms,
             }
-            return 'No scans sent'
-        
+
         closest_scan = None
-        for scan in scans:
-            if closest_scan is None or closest_scan['signal_strength'] > scan['signal_strength']:
+        to_delete = []
+        for scan in scans.values():
+            if scan['last_seen'] < (current_ms - 10000):
+                to_delete.append(scan['mac_address'])
+                continue
+
+            if closest_scan:
+                logger.info("comparinng %s > %s -> %s", closest_scan['signal_strength'], scan['signal_strength'], closest_scan['signal_strength'] > scan['signal_strength'])
+            if closest_scan is None or scan['signal_strength'] > closest_scan['signal_strength']:
                 closest_scan = scan
+
+        logger.info(scans)
+
+        for mac_address in to_delete:
+            logger.info("dropping %s", mac_address)
+            del scans[mac_address]
+
+        if not closest_scan:
+            return '', 200
 
         closest_scan['beacon'] = beacons[closest_scan['mac_address']]
 
@@ -285,7 +314,7 @@ def send_scan():
             'ip_address': ip_address,
             'scans': scans,
         }
-        logger.info('User {} is near {} ({})'.format(ip_address, closest_scan['name'], closest_scan['mac_address']))
+        logger.info('User {} is near {} ({} {})'.format(ip_address, closest_scan['name'], closest_scan['mac_address'], closest_scan['signal_strength']))
         return json.dumps(user_table[ip_address])
 
     return '', 405

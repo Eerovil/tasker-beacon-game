@@ -64,6 +64,7 @@
         height: 70%;
         background-size: contain;
         background-repeat: no-repeat;
+        position: relative;
     }
     #shop .items {
         width: 100%;
@@ -76,6 +77,7 @@
     #shop .items .item-wrapper {
         width: 100%;
         height: 100%;
+        margin: 0.5rem;
     }
     #shop .items .item {
         width: 100%;
@@ -95,6 +97,19 @@
         align-items: center;
         justify-content: center;
     }
+    #shop .happiness {
+        position: absolute;
+        right: 0;
+        top: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        width: 10vh;
+        height: 10vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
     .pending-drop {
         opacity: 0.5;
     }
@@ -104,6 +119,19 @@
         right: 0;
         font-size: 5vh;
         color: #ffb000;
+
+        background: white;
+        border-radius: 0.5rem;
+        margin-bottom: -0.5rem;
+        margin-right: -0.5rem;
+    }
+    #shop .item-wrapper.notavailable {
+        background-color: red;
+        border-radius: 0.5rem;
+        opacity: 0.7;
+    }
+    #shop .item-wrapper.filled {
+        opacity: 0.7;
     }
     .price img {
         height: 40px;
@@ -166,15 +194,18 @@
                 </div>
             </div>
             <div id="shop">
+                <h2 v-if="map_user_pos">{{ map_user_pos.name }}</h2>
                 <div v-if="shop" class="shopkeeper" :style="{
                     backgroundImage: 'url(' + encodeURI(shop.shopkeeper.url) + ')'
                 }">
                     <div class="favorite">
                         <img :src="shop.shopkeeper.favorite_item.url" />
                     </div>
+                    <div class="happiness" :style="{backgroundImage: `url('/static/happiness_${shop.shopkeeper.happiness}.png')`}">
+                    </div>
                 </div>
                 <div v-if="shop" class="items">
-                    <div v-for="item in shop.items" class="item-wrapper inventory-draggable">
+                    <div v-for="item in shop.items" class="item-wrapper inventory-draggable" :class="{notavailable: item.price > money, filled: !!inventory}">
                         <div :ref="`item-${item.slug}`" :data-slug="item.slug" class="item" :style="{
                             backgroundImage: 'url(' + encodeURI(item.url) + ')'
                         }">
@@ -216,6 +247,8 @@
                 money: null,
 
                 dragItem: null,
+
+                run: null,
             }),
             mounted() {
                 axios.get('/map').then(response => {
@@ -228,6 +261,12 @@
             methods: {
                 mainLoop() {
                     axios.get('/get_my_data').then(response => {
+                        if (!this.run) {
+                            this.run = response.data.run;
+                        }
+                        if (response.data.run != this.run) {
+                            window.location.reload();
+                        }
                         if ((response.data.inventory || {}).slug != (this.inventory || {}).slug) {
                             this.inventory = response.data.inventory;
                         }
@@ -238,6 +277,7 @@
                             if (response.data.closest_scan.mac_address !== (this.map_user_pos || {}).mac_address) {
                                 this.map_user_pos = response.data.closest_scan;
                                 this.map_user_area = response.data.closest_scan.beacon.area;
+                                this.inventory = response.data.inventory;
                             }
                         } else {
                             this.map_user_area = null;
@@ -262,6 +302,11 @@
                     return axios.post('/sell_item', {
                         slug: slug
                     }).then(response => {
+                        if (response.shops) {
+                            this.shops = response.shops;
+                            this.inventory = response.data.inventory;
+                            this.money = response.data.money;
+                        }
                         console.log(response)
                     })
                 },
