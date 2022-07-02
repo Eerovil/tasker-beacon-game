@@ -41,7 +41,7 @@ user_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="users",
 shop_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="shops", autocommit=True)
 shop_table = {}
 user_items_table = SqliteDict(os.path.join(data_folder, 'main.db'), tablename="user_items", autocommit=True)
-
+user_items_table = {}
 
 beacons = {}
 with open(os.path.join(data_folder, 'beacons.json'), 'r') as f:
@@ -305,9 +305,9 @@ def send_scan():
 
             if scan['last_seen'] < current_ms:
                 # Make unseen beacons less signaling
-                scan['signal_strength'] -= 10
+                scan['signal_strength'] -= (10 * (current_ms - scan['last_seen']) / 1000)
 
-            if scan['mac_address'] == closest_scan['mac_address']:
+            if closest_scan and scan['mac_address'] == closest_scan['mac_address']:
                 closest_scan['signal_strength'] = scan['signal_strength']
 
             # if closest_scan:

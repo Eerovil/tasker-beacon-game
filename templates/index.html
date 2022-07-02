@@ -301,7 +301,7 @@
                     .finally(() => {
                         setTimeout(() => {
                             this.mainLoop();
-                        }, 2000);
+                        }, 1000);
                     });
                 },
                 purchaseItem(slug) {
@@ -321,6 +321,7 @@
                         slug: slug
                     }).then(response => {
                         this.shops = response.data.shops;
+                        this.shop = this.shops[this.map_user_pos.mac_address]
                         this.inventory = response.data.inventory;
                         this.money = response.data.money;
                         console.log(response)
