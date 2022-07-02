@@ -81,6 +81,7 @@ def refresh_shops():
 
     for beacon_mac in beacons.keys():
         shop_table[beacon_mac] = {
+            'mac_address': beacon_mac,
             'shopkeeper': random_pop(merchants),
             'items': [random_pop(items) for _ in range(3)]
         }
@@ -96,10 +97,16 @@ def refresh_shops():
             continue
         
         favorite_item = random.choice(other_items)
-        shop_table[beacon_mac]['favorite_item'] = favorite_item
+        shop_table[beacon_mac]['shopkeeper']['favorite_item'] = favorite_item
 
 
 refresh_shops()
+
+
+def get_ip():
+    ip_address = request.remote_addr
+    ip_address = "192.168.100.128"
+    return ip_address
 
 
 @app.after_request
@@ -132,20 +139,110 @@ def get_my_data():
     if request.method != 'GET':
         return '', 405
 
-    ip_address = request.remote_addr
-    ip_address = "192.168.100.128"
+    ip_address = get_ip()
     if ip_address not in user_table:
         return '', 404
 
     user_data = user_table[ip_address]
+
+    if ip_address not in user_items_table:
+        user_items_table[ip_address] = {
+            'inventory': None,
+            'money': 5,
+        }
+
     return json.dumps({**user_data, **user_items_table.get(ip_address, {})})
+
+
+@app.route("/purchase_item", methods=['POST'])
+def purchase_item():
+    if request.method != 'POST':
+        return '', 405
+
+    ip_address = get_ip()
+    if ip_address not in user_table:
+        return '', 404
+
+    user_data = user_table[ip_address]
+
+
+    if not user_data.get('closest_scan'):
+        return '', 400
+
+    user_items = user_items_table.get(ip_address, {})
+
+    item_slug = request.json['slug']
+
+    mac_address = user_data['closest_scan']['mac_address']
+
+    for item in shop_table[mac_address]['items']:
+        if item['slug'] == item_slug:
+            break
+    else:
+        return '', 404
+
+    if item['price'] > user_items['money']:
+        return 'Not enough money', 400
+
+    user_items['money'] -= item['price']
+    user_items['inventory'] = item
+    user_items_table[ip_address] = user_items
+    return 'OK', 200
+
+
+@app.route("/sell_item", methods=['POST'])
+def sell_item():
+    if request.method != 'POST':
+        return '', 405
+
+    ip_address = get_ip()
+    if ip_address not in user_table:
+        return '', 404
+
+    user_data = user_table[ip_address]
+
+    if not user_data.get('closest_scan'):
+        return '', 400
+
+    user_items = user_items_table.get(ip_address, {})
+
+    item_slug = request.json['slug']
+
+    mac_address = user_data['closest_scan']['mac_address']
+
+    item = None
+    in_current_shop = False
+    for shop in shop_table.values():
+        logger.info(shop)
+        for _item in shop['items']:
+            if _item['slug'] == item_slug:
+                item = _item
+                in_current_shop = (shop['mac_address'] == mac_address)
+                break
+        if item:
+            break
+    if not item:
+        return '', 404
+
+    shop = shop_table[mac_address]
+    sale_price = item['price']
+
+    if not in_current_shop:
+        sale_price += 1
+
+    if shop['shopkeeper']['favorite_item'] == item_slug:
+        sale_price *= 2
+
+    user_items['money'] += sale_price
+    user_items['inventory'] = None
+    user_items_table[ip_address] = user_items
+    return 'OK', 200
 
 
 @app.route("/send_scan", methods=['POST'])
 def send_scan():
     if request.method == 'POST':
-        ip_address = request.remote_addr
-        ip_address = "192.168.100.128"
+        ip_address = get_ip()
         data = request.json
         logger.info("scans from {}: {}".format(ip_address, data))
         mac_addresses = data.get('mac', '').upper().split(',')

@@ -79,7 +79,7 @@
         background-repeat: no-repeat;
         position: relative;
     }
-    #shop .item.pending-drop {
+    .pending-drop {
         opacity: 0.5;
     }
     #shop .items .item .price {
@@ -110,6 +110,12 @@
         width: 100%;
         height: 100%;
         padding: 0;
+    }
+    #inventory .inventory-item {
+        width: 100%;
+        height: 100%;
+        background-size: contain;
+        background-repeat: no-repeat;
     }
     .drop-active {
       border-color: #aaa;
@@ -147,7 +153,7 @@
                 </div>
                 <div v-if="shop" class="items">
                     <div v-for="item in shop.items" class="item-wrapper inventory-draggable">
-                        <div :ref="`item-${item.slug}`" class="item" :style="{
+                        <div :ref="`item-${item.slug}`" :data-slug="item.slug" class="item" :style="{
                             backgroundImage: 'url(' + encodeURI(item.url) + ')'
                         }">
                         <div class="price">{{ item.price }}<img src="/static/gold.png" /></div>
@@ -218,7 +224,22 @@
                             this.mainLoop();
                         }, 1000);
                     });
-                }
+                },
+                purchaseItem(slug) {
+                    const item = this.shop.items.find(item => item.slug == slug);
+                    return axios.post('/purchase_item', {
+                        slug: slug
+                    }).then(response => {
+                        console.log(response)
+                    })
+                },
+                sellItem(slug) {
+                    return axios.post('/sell_item', {
+                        slug: slug
+                    }).then(response => {
+                        console.log(response)
+                    })
+                },
             },
             watch: {
                 map_user_pos: function(val) {
@@ -236,12 +257,13 @@
                                 ],
                                 autoScroll: true,
                                 // dragMoveListener from the dragging demo above
-                                listeners: { move: dragMoveListener }
+                                listeners: { move: dragMoveListener, end: dragDropListener }
                             })
                     })
                 },
                 inventory: {
                     handler() {
+                        const vm = this;
                         if (!this.inventory) {
                             interact('.inventory-empty').dropzone({
                                 // only accept elements matching this CSS selector
@@ -270,6 +292,60 @@
                                 ondrop: function (event) {
                                     console.log("ondrop", event)
                                     event.relatedTarget.classList.add('pending-drop')
+
+                                    vm.purchaseItem(event.relatedTarget.dataset.slug).finally(() => {
+                                        event.relatedTarget.classList.remove('pending-drop')
+                                    });
+                                },
+                                ondropdeactivate: function (event) {
+                                    // remove active dropzone feedback
+                                    event.target.classList.remove('drop-active')
+                                    event.target.classList.remove('drop-target')
+                                    event.relatedTarget.style.transform = 'none'
+                                    event.relatedTarget.setAttribute('data-x', 0)
+                                    event.relatedTarget.setAttribute('data-y', 0)
+                                }
+                            })
+                        } else {
+                            interact('.inventory-item')
+                                .draggable({
+                                    inertia: true,
+                                    modifiers: [],
+                                    autoScroll: true,
+                                    // dragMoveListener from the dragging demo above
+                                    listeners: { move: dragMoveListener, end: dragDropListener }
+                                })
+                            interact('.shopkeeper').dropzone({
+                                // only accept elements matching this CSS selector
+                                accept: '.inventory-item',
+                                // Require a 50% element overlap for a drop to be possible
+                                overlap: 0.50,
+
+                                // listen for drop related events:
+                                ondropactivate: function (event) {
+                                    // add active dropzone feedback
+                                    event.target.classList.add('drop-active')
+                                },
+                                ondragenter: function (event) {
+                                    var draggableElement = event.relatedTarget
+                                    var dropzoneElement = event.target
+                                
+                                    // feedback the possibility of a drop
+                                    dropzoneElement.classList.add('drop-target')
+                                    draggableElement.classList.add('can-drop')
+                                },
+                                ondragleave: function (event) {
+                                    // remove the drop feedback style
+                                    event.target.classList.remove('drop-target')
+                                    event.relatedTarget.classList.remove('can-drop')
+                                },
+                                ondrop: function (event) {
+                                    console.log("ondrop", event)
+                                    event.relatedTarget.classList.add('pending-drop')
+
+                                    vm.sellItem(vm.inventory.slug).finally(() => {
+                                        event.relatedTarget.classList.remove('pending-drop')
+                                    });
                                 },
                                 ondropdeactivate: function (event) {
                                     // remove active dropzone feedback
@@ -298,7 +374,17 @@
             // update the posiion attributes
             target.setAttribute('data-x', x)
             target.setAttribute('data-y', y)
-          }
+        }
+        function dragDropListener (event) {
+            var target = event.target
+        
+            // translate the element
+            target.style.transform = 'none'
+        
+            // update the posiion attributes
+            target.setAttribute('data-x', 0)
+            target.setAttribute('data-y', 0)
+        }
           
     </script>
     {% endraw %}
