@@ -115,7 +115,7 @@ refresh_shops()
 
 def get_ip():
     ip_address = request.remote_addr
-    ip_address = "192.168.100.128"
+    # ip_address = "192.168.100.128"
     return ip_address
 
 
