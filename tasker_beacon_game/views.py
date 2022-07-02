@@ -196,7 +196,11 @@ def purchase_item():
     user_items['money'] -= item['price']
     user_items['inventory'] = item
     user_items_table[ip_address] = user_items
-    return 'OK', 200
+
+    return json.dumps({
+        'inventory': user_items['inventory'],
+        'money': user_items['money'],
+    })
 
 
 @app.route("/sell_item", methods=['POST'])
@@ -258,7 +262,7 @@ def send_scan():
     if request.method == 'POST':
         ip_address = get_ip()
         data = request.json
-        logger.info("scans from {}: {}".format(ip_address, data))
+        # logger.info("scans from {}: {}".format(ip_address, data))
         mac_addresses = data.get('mac', '').upper().split(',')
         signal_strengths = data.get('ss', '').split(',')
         current_ms = time.time_ns() // 1000000
@@ -293,12 +297,12 @@ def send_scan():
                 to_delete.append(scan['mac_address'])
                 continue
 
-            if closest_scan:
-                logger.info("comparinng %s > %s -> %s", closest_scan['signal_strength'], scan['signal_strength'], closest_scan['signal_strength'] > scan['signal_strength'])
+            # if closest_scan:
+            #     logger.info("comparinng %s > %s -> %s", closest_scan['signal_strength'], scan['signal_strength'], closest_scan['signal_strength'] > scan['signal_strength'])
             if closest_scan is None or scan['signal_strength'] > closest_scan['signal_strength']:
                 closest_scan = scan
 
-        logger.info(scans)
+        # logger.info(scans)
 
         for mac_address in to_delete:
             logger.info("dropping %s", mac_address)

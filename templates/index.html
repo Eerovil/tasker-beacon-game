@@ -249,6 +249,8 @@
                 dragItem: null,
 
                 run: null,
+
+                skipNext: false,
             }),
             mounted() {
                 axios.get('/map').then(response => {
@@ -261,6 +263,10 @@
             methods: {
                 mainLoop() {
                     axios.get('/get_my_data').then(response => {
+                        if (this.skipNext) {
+                            this.skipNext = false;
+                            return
+                        }
                         if (!this.run) {
                             this.run = response.data.run;
                         }
@@ -287,26 +293,28 @@
                     .finally(() => {
                         setTimeout(() => {
                             this.mainLoop();
-                        }, 1000);
+                        }, 2000);
                     });
                 },
                 purchaseItem(slug) {
                     const item = this.shop.items.find(item => item.slug == slug);
+                    this.skipNext = true;
                     return axios.post('/purchase_item', {
                         slug: slug
                     }).then(response => {
+                        this.inventory = response.data.inventory;
+                        this.money = response.data.money;
                         console.log(response)
                     })
                 },
                 sellItem(slug) {
+                    this.skipNext = true;
                     return axios.post('/sell_item', {
                         slug: slug
                     }).then(response => {
-                        if (response.shops) {
-                            this.shops = response.shops;
-                            this.inventory = response.data.inventory;
-                            this.money = response.data.money;
-                        }
+                        this.shops = response.data.shops;
+                        this.inventory = response.data.inventory;
+                        this.money = response.data.money;
                         console.log(response)
                     })
                 },
