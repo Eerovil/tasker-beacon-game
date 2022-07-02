@@ -7,6 +7,10 @@
 
 <script src="https://unpkg.com/interactjs/dist/interact.min.js"></script>
 
+<link rel="manifest" href="/static/manifest.json">
+
+<meta name="mobile-web-app-capable" content="yes">
+
 <style>
     #map .map_img {
         background-image: url('/static/map.png');
@@ -34,6 +38,7 @@
         background-color: #ff0000;
     }
     #map {
+        display: none;
         position: relative;
         top: 0;
         right: 0;
@@ -263,7 +268,12 @@
             },
             watch: {
                 map_user_pos: function(val) {
-                    this.shop = this.shops[val.mac_address];
+                    if (!val) {
+                        this.shop = null;
+                        return;
+                    } else {
+                        this.shop = this.shops[val.mac_address];
+                    }
                     this.$nextTick(() => {
                         for (const item of this.shop.items) {
                             const el = this.$refs[`item-${item.slug}`];

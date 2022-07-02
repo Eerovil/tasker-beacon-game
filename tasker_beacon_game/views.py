@@ -105,7 +105,7 @@ refresh_shops()
 
 def get_ip():
     ip_address = request.remote_addr
-    ip_address = "192.168.100.128"
+    # ip_address = "192.168.100.128"
     return ip_address
 
 
@@ -247,25 +247,27 @@ def send_scan():
         mac_addresses = data.get('mac', '').upper().split(',')
         signal_strengths = data.get('ss', '').split(',')
 
-        # NAMES IS NOT ALWAYS PROVIDED; THE LIST MAY BE OF DIFFERENT LENGTH
-        names = data.get('n', '').split(',')
-
         scans = []
 
-        for mac_address, signal_strength, name in zip(mac_addresses, signal_strengths, names):
+        for mac_address, signal_strength in zip(mac_addresses, signal_strengths):
             if not mac_address:
                 continue
             if mac_address not in beacons:
                 continue
+
+            signal_strength = int(signal_strength)
+            if signal_strength < -62:
+                continue
             scans.append({
                 'mac_address': mac_address,
                 'signal_strength': signal_strength,
-                'name': beacons[mac_address].get('name') or name
+                'name': beacons[mac_address].get('name') or ''
             })
 
         if len(scans) == 0:
             logger.info("No scans sent from {}".format(ip_address))
             user_table[ip_address] = {
+                'closest_scan': None,
                 'ip_address': ip_address,
                 'scans': [],
             }
